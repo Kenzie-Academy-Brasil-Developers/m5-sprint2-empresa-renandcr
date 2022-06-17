@@ -1,107 +1,106 @@
-import os
-import json
 from datetime import datetime
-
+import json
+import os
+from helpers import StringHandler
 class Empresa:
     def __init__(self, nome: str, cnpj: str):
-        self.nome = " ".join(nome.split()).title()
+        self.nome = StringHandler.title_case(nome)
         self.cnpj = cnpj
         self.contratados = []
 
     def __len__(self):
         return len(self.contratados)
 
-    def contratar_funcionario(self, funcionario):
-        newFuncionario = funcionario.__dict__
+    def contratar_funcionario(self, funcionario) -> None | str:
+        funcionario.email = StringHandler.email_case(funcionario.nome, self.nome)
+        funcionario.empresa = self.nome
+        funcionario_ja_existe = [func for func in self.contratados if func["cpf"] == funcionario.cpf]
 
-        email = f"{newFuncionario['nome'].strip().replace(' ', '_').lower()}@{self.nome.replace(' ', '').lower()}.com"
-        empresa = self.nome
+        if funcionario_ja_existe:
+            return "Funcionário com esse CPF já foi contratado"
 
-        newFuncionario["email"] = email
-        newFuncionario["empresa"] = empresa
-
-        isHired = False
-        for x in self.contratados:
-            if x["cpf"] == newFuncionario["cpf"]:
-                isHired = True
-                return "Funcionário com esse CPF já foi contratado."
-    
-        if not isHired:
-            self.contratados.append(newFuncionario)
-            return "Funcionário contratado!"
+        self.contratados.append(funcionario.__dict__)
+        return "Funcionário contratado!"
 
     def gerar_holerite(self, funcionario):
-        isHired = False
-        for x in self.contratados:
-            if x["cpf"] == funcionario.__dict__["cpf"]:
-                isHired = True
+        funcionario_copia = funcionario.__dict__.copy()
+        caminho_diretorio_empresa = f"empresas/{StringHandler.snake_case_lower(self.nome)}"
+        funcionario_ja_existe = [func for func in self.contratados if func["cpf"] == funcionario.cpf]
 
-                if not os.path.exists(f"./empresas/{self.nome.replace(' ', '_').lower()}"):
-                    os.makedirs(f"./empresas/{self.nome.replace(' ', '_').lower()}")
-   
-                funcionarioHolerite = funcionario.__dict__.copy()
-
-                del funcionarioHolerite["email"]
-                del funcionarioHolerite["empresa"]
-
-                funcionarioHolerite["mes"] = datetime.now().strftime("%B") 
-
-                with open(f"./empresas/{self.nome.replace(' ', '_').lower()}/{funcionarioHolerite['nome'].replace(' ', '_').lower()}.json", "w") as write_file:
-                    json.dump(funcionarioHolerite, write_file, indent=2)
-
-                return True
-            
-        if not isHired:
+        if not funcionario_ja_existe:
             return False
+
+        if not os.path.exists(caminho_diretorio_empresa):
+            os.makedirs(caminho_diretorio_empresa)
+
+        funcionario_copia["mes"] = datetime.now().strftime("%B")
+        del funcionario_copia["email"]
+        del funcionario_copia["empresa"]
+
+        with open(f"{caminho_diretorio_empresa}/{StringHandler.snake_case_lower(funcionario.nome)}.json", "w") as arquivo:
+            json.dump(funcionario_copia, arquivo, indent=2)
+            return True
 
     @staticmethod
     def ler_holerite(empresa, funcionario):
-        pathEmpresa = empresa.__dict__["nome"].replace(" ", "_").lower()
-        pathFuncionario = funcionario.__dict__["nome"].replace(" ", "_").lower()
-        paySlipExists = os.path.exists(f"./empresas/{pathEmpresa}/{pathFuncionario}.json")
+        caminho_holerite_ja_existe = f"empresas/{StringHandler.snake_case_lower(funcionario.empresa)}/{StringHandler.snake_case_lower(funcionario.nome)}.json"
 
-        if paySlipExists:
-            with open(f"./empresas/{pathEmpresa}/{pathFuncionario}.json", "r") as file_funcionario:
-                return json.load(file_funcionario)
+        if not os.path.exists(caminho_holerite_ja_existe):
+            return "Holerite não gerado"
 
-        else:
-            return "Holerite não gerado!"
+        with open(caminho_holerite_ja_existe, "r") as arquivo_encontrado:
+            arquivo_funcionario = json.load(arquivo_encontrado)
+            return arquivo_funcionario
 
-
+    
     def demissao(self, funcionario):
-        if len(self.contratados) == 0:
-            return "Não há funcionários contratados nesta empresa"
+        funcionario_ja_existe = [func for func in self.contratados if func["cpf"] == funcionario.cpf]
 
-        elif funcionario.funcao == "Gerente":
-            for x in self.contratados:
-                if x["cpf"] == funcionario.cpf:
-                    self.contratados.remove(x)
-                    return "Gerente demitido!"
-        
-        for func_current in self.contratados:
-            if func_current["cpf"] == funcionario.cpf:
-                            self.contratados.remove(func_current)
-        
-        if funcionario.funcao == "Funcionário":
-            for func_current in self.contratados:
-                for key_funcionarios, value in func_current.items():
-                    if key_funcionarios == "funcionarios":  
-                        for current in value:
-                            if current["cpf"] == funcionario.cpf:
-                                value.remove(current)
-                                return "Funcionário demitido"
-        
-        return "Não consta esse CPF na empresa"
-                
+        if funcionario_ja_existe:
+            if funcionario.funcao == "Gerente":
+                for func in self.contratados:
+                    if func["cpf"] == funcionario.cpf:
+                        self.contratados.remove(func)
+                        return "Gerente demitido!"
             
+            elif funcionario.funcao == "Funcionário":
+                for func in self.contratados:
+                    if func["cpf"] == funcionario.cpf:
+                        self.contratados.remove(func)
+
+                for func in self.contratados:
+                    try:
+                        if func["funcionarios"]:
+                            for x in func["funcionarios"]:
+                                if x["cpf"] == funcionario.cpf:
+                                    func["funcionarios"].remove(x)
+                                    return "Funcionário demitido!"
+                    except:
+                        pass
+
+        return "Não consta esse CPF na empresa"
+                        
 
     def promocao(self, funcionario):
         if funcionario.funcao == "Funcionário":
-            for func in self.contratados:
-                if func["cpf"] == funcionario.cpf:
-                    funcionario.funcao = "Gerente"
-                    return funcionario
+            funcionario_ja_existe = [func for func in self.contratados if func["cpf"] == funcionario.cpf]
+
+            if funcionario_ja_existe:
+                funcionario.funcao = "Gerente"
+                return funcionario
 
         return False
 
+    
+
+
+
+            
+
+
+        
+
+
+
+    
 

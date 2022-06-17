@@ -1,6 +1,5 @@
-from classes import Funcionario, empresa, funcionario
-from classes import Empresa
-from classes import Gerente
+from classes import Funcionario, Empresa, Gerente
+from datetime import date, datetime
 
 if __name__ == "__main__":
     ...
